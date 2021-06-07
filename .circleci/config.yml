@@ -173,7 +173,9 @@ jobs:
           paths:
             - .circleci/ansible/inventory.txt
       
-
+      - destroy_environment:
+          workflow_id: ${CIRCLE_WORKFLOW_ID}
+      - revert-migrations
   configure-infrastructure:
     docker:
       - image: python:3.7-alpine3.11
@@ -209,7 +211,9 @@ jobs:
             cd .circleci/ansible
             ansible-playbook -i inventory.txt configure-server.yml
       
-  
+      - destroy_environment:
+          workflow_id: ${CIRCLE_WORKFLOW_ID}
+      - revert-migrations
   run-migrations:
     docker:
       - image: circleci/node:13.8.0
@@ -252,7 +256,9 @@ jobs:
               echo $(curl -H "Content-Type: text/plain" -H "token: ${CIRCLE_WORKFLOW_ID}" --request PUT --data "0" https://api.memstash.io/values/migration_${CIRCLE_WORKFLOW_ID})
             fi
      
-
+      - destroy_environment:
+          workflow_id: ${CIRCLE_WORKFLOW_ID}
+      - revert-migrations
   deploy-frontend:
     docker:
       - image: amazon/aws-cli
@@ -276,7 +282,9 @@ jobs:
             npm run build
             echo ${CIRCLE_WORKFLOW_ID}
             aws s3 sync dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7}
-      
+      - destroy_environment:
+          workflow_id: ${CIRCLE_WORKFLOW_ID}
+      - revert-migrations  
   deploy-backend:
     docker:
       - image: python:3.7-alpine3.11
@@ -298,7 +306,9 @@ jobs:
             cd .circleci/ansible
             export ANSIBLE_HOST_KEY_CHECKING=False
             ansible-playbook -i inventory.txt deploy-backend.yml
-      
+      - destroy_environment:
+          workflow_id: ${CIRCLE_WORKFLOW_ID}
+      - revert-migrations
   smoke-test:
     docker:
       - image: python:3.7-alpine3.11
@@ -325,7 +335,9 @@ jobs:
             else
             return 1
             fi
-
+      - destroy_environment:
+          workflow_id: ${CIRCLE_WORKFLOW_ID}
+      - revert-migrations
   cloudfront-update:
     docker:
       - image: amazon/aws-cli
@@ -407,10 +419,15 @@ workflows:
             branches:
               only:
                 - master
-      
-                
-      - cloudfront-update:
+      - smoke-test:
           requires: [deploy-frontend, deploy-backend]
+          filters:
+            branches:
+              only:
+                - master
+      
+      - cloudfront-update:
+          requires: [smoke-test]
           filters:
             branches:
               only:
